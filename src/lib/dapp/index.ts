@@ -66,6 +66,7 @@ export class DAppConnector {
   supportedChains: string[] = []
 
   extensions: ExtensionData[] = []
+  public onSessionIframeCreated: ((session: SessionTypes.Struct) => void) | null = null
 
   walletConnectClient: SignClient | undefined
   walletConnectModal: WalletConnectModal
@@ -107,17 +108,19 @@ export class DAppConnector {
       extensionIds?.map((id) => ({
         id,
         available: false,
+        availableInIframe: false,
       })) ?? []
 
     if (extensionIds?.length) {
       findExtensions(
         this.extensions.map((ext) => ext.id),
-        (metadata) => {
+        (metadata, isIframe) => {
           this.extensions = this.extensions.map((ext) => {
             if (metadata.id === ext.id) {
               return {
                 ...ext,
                 available: true,
+                availableInIframe: isIframe,
                 name: metadata.name,
                 url: metadata.url,
                 icon: metadata.icon,
@@ -150,6 +153,7 @@ export class DAppConnector {
 
       if (existingSessions)
         this.signers = existingSessions.flatMap((session) => this.createSigners(session))
+      else this.checkIframeConnect()
 
       this.walletConnectClient.on('session_event', (event) => {
         // Handle session events, such as "chainChanged", "accountsChanged", etc.
@@ -275,11 +279,22 @@ export class DAppConnector {
     if (!extension || !extension.available) throw new Error('Extension is not available')
     return this.connect(
       (uri) => {
-        extensionConnect(extension.id, uri)
+        extensionConnect(extension.id, extension.availableInIframe, uri)
       },
       pairingTopic,
-      extensionId,
+      extension.availableInIframe ? undefined : extensionId,
     )
+  }
+
+  /**
+   *  Initiates the WallecConnect connection if the wallet in iframe mode is detected.
+   */
+  private async checkIframeConnect() {
+    const extension = this.extensions.find((ext) => ext.availableInIframe)
+    if (extension) {
+      const session = await this.connectExtension(extension.id)
+      if (this.onSessionIframeCreated) this.onSessionIframeCreated(session)
+    }
   }
 
   private abortableConnect = async <T>(callback: () => Promise<T>): Promise<T> => {
