@@ -18,7 +18,7 @@
  *
  */
 
-import { AccountId, LedgerId } from '@hashgraph/sdk'
+import { AccountId, LedgerId, Transaction } from '@hashgraph/sdk'
 import { EngineTypes, SessionTypes, SignClientTypes } from '@walletconnect/types'
 import QRCodeModal from '@walletconnect/qrcode-modal'
 import { WalletConnectModal } from '@walletconnect/modal'
@@ -46,6 +46,7 @@ import {
   SignTransactionParams,
   SignTransactionRequest,
   SignTransactionResult,
+  transactionToBase64String,
 } from '../shared'
 import { DAppSigner } from './DAppSigner'
 import { JsonRpcResult } from '@walletconnect/jsonrpc-types'
@@ -340,11 +341,10 @@ export class DAppConnector {
   /**
    * Executes a transaction on the Hedera network.
    *
-   * @param {ExecuteTransactionParams} params - The parameters of type {@link ExecuteTransactionParams | `ExecuteTransactionParams`} required for the transaction execution.
-   * @param {string[]} params.signedTransaction - Array of Base64-encoded `Transaction`'s
+   * @param {ExecuteTransactionParams | Transaction} paramsOrTransaction - The parameters of type {@link ExecuteTransactionParams | `ExecuteTransactionParams`} required for the transaction execution.
    * @returns Promise\<{@link ExecuteTransactionResult}\>
    * @example
-   * Use helper `transactionToBase64String` to encode `Transaction` to Base64 string
+   * Explicitly use helper `transactionToBase64String` to encode `Transaction` to Base64 string
    * ```ts
    * const params = {
    *  signedTransaction: [transactionToBase64String(transaction)]
@@ -352,8 +352,24 @@ export class DAppConnector {
    *
    * const result = await dAppConnector.executeTransaction(params)
    * ```
+   * @example
+   * Pass `Transaction` object directly, the helper will be implicitly used
+   * ```ts
+   * const result = await dAppConnector.executeTransaction(Transaction)
+   * ```
    */
-  public async executeTransaction(params: ExecuteTransactionParams) {
+  public async executeTransaction(paramsOrTransaction: ExecuteTransactionParams | Transaction) {
+    let params
+    // ExecuteTransactionParams was passed as argument
+    if ('transactionList' in paramsOrTransaction) params = paramsOrTransaction
+    // Transaction was passed as argument
+    else if ('_transactions' in paramsOrTransaction)
+      params = {
+        transactionList: transactionToBase64String(paramsOrTransaction),
+      }
+
+    if (!params) throw new Error('Invalid transaction parameters')
+
     return await this.request<ExecuteTransactionRequest, ExecuteTransactionResult>({
       method: HederaJsonRpcMethod.ExecuteTransaction,
       params,

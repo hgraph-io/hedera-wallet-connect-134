@@ -44,7 +44,6 @@ import { proto } from '@hashgraph/proto'
 import type { ISignClient } from '@walletconnect/types'
 
 import {
-  ExecuteTransactionResult,
   HederaJsonRpcMethod,
   SignAndExecuteQueryResult,
   SignAndExecuteTransactionResult,
@@ -298,13 +297,6 @@ export class DAppSigner implements Signer {
   /*
    *  Extra methods
    */
-
-  async executeTransaction<T extends Transaction>(transaction: T) {
-    return this.request<ExecuteTransactionResult['result']>({
-      method: HederaJsonRpcMethod.ExecuteTransaction,
-      params: { transactionList: transactionToBase64String(transaction) },
-    })
-  }
 
   async signMessage(message: string) {
     const params = {
